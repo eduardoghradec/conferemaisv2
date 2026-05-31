@@ -145,35 +145,48 @@ export const useProjectStore = create<ProjectStore>()((set, get) => ({
     if (isLoading) return
 
     set({ isLoading: true })
-    const supabase = createClient()
 
-    const NF_COLUMNS = 'id, project_id, user_id, name, description, file_name, file_size, uploaded_at, updated_at, emitente, data_emissao, itens, quantidade_total, volumes'
+    try {
+      const supabase = createClient()
 
-    const [{ data: projectRows }, { data: nfRows }] = await Promise.all([
-      supabase.from('projects').select('*').order('created_at', { ascending: false }),
-      supabase.from('nfs').select(NF_COLUMNS).order('uploaded_at', { ascending: false }),
-    ])
+      const NF_COLUMNS = 'id, project_id, user_id, name, description, file_name, file_size, uploaded_at, updated_at, emitente, data_emissao, itens, quantidade_total, volumes'
 
-    // Preserve fileData já carregado em memória para NFs que já foram abertas
-    const existingNFs = get().nfs
-    const fileDataCache: Record<string, string> = {}
-    for (const nf of existingNFs) {
-      if (nf.fileData) fileDataCache[nf.id] = nf.fileData
+      const [
+        { data: projectRows, error: projectError },
+        { data: nfRows, error: nfError },
+      ] = await Promise.all([
+        supabase.from('projects').select('*').order('created_at', { ascending: false }),
+        supabase.from('nfs').select(NF_COLUMNS).order('uploaded_at', { ascending: false }),
+      ])
+
+      if (projectError || nfError) {
+        console.error('[fetchData]', projectError ?? nfError)
+        set({ hasFetched: true })
+        return
+      }
+
+      // Preserve fileData já carregado em memória para NFs que já foram abertas
+      const existingNFs = get().nfs
+      const fileDataCache: Record<string, string> = {}
+      for (const nf of existingNFs) {
+        if (nf.fileData) fileDataCache[nf.id] = nf.fileData
+      }
+
+      const mappedNFs = (nfRows as NFRow[] ?? []).map((row) => {
+        const nf = mapNF(row)
+        if (fileDataCache[nf.id]) nf.fileData = fileDataCache[nf.id]
+        return nf
+      })
+
+      set({
+        projects: (projectRows as ProjectRow[] ?? []).map(mapProject),
+        nfs: mappedNFs,
+        hasFetched: true,
+        lastFetched: Date.now(),
+      })
+    } finally {
+      set({ isLoading: false })
     }
-
-    const mappedNFs = (nfRows as NFRow[] ?? []).map((row) => {
-      const nf = mapNF(row)
-      if (fileDataCache[nf.id]) nf.fileData = fileDataCache[nf.id]
-      return nf
-    })
-
-    set({
-      projects: (projectRows as ProjectRow[] ?? []).map(mapProject),
-      nfs: mappedNFs,
-      isLoading: false,
-      hasFetched: true,
-      lastFetched: Date.now(),
-    })
   },
 
   // Carrega fileData de uma NF específica sob demanda
