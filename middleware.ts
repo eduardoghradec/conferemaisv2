@@ -3,12 +3,21 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request })
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error(
+      '[middleware] Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. ' +
+        'Add these to your Vercel project environment variables.'
+    )
+    return NextResponse.next({ request })
+  }
+
+  try {
+    let supabaseResponse = NextResponse.next({ request })
+
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
       cookies: {
         getAll: () => request.cookies.getAll(),
         setAll: (cookiesToSet) => {
@@ -21,26 +30,28 @@ export async function middleware(request: NextRequest) {
           )
         },
       },
+    })
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    const { pathname } = request.nextUrl
+    const isAuthPage = pathname === '/login' || pathname === '/signup'
+
+    if (!user && !isAuthPage) {
+      return NextResponse.redirect(new URL('/login', request.url))
     }
-  )
 
-  // Refresh session — do NOT remove this call
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+    if (user && isAuthPage) {
+      return NextResponse.redirect(new URL('/', request.url))
+    }
 
-  const { pathname } = request.nextUrl
-  const isAuthPage = pathname === '/login' || pathname === '/signup'
-
-  if (!user && !isAuthPage) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    return supabaseResponse
+  } catch (error) {
+    console.error('[middleware] Unexpected error:', error)
+    return NextResponse.next({ request })
   }
-
-  if (user && isAuthPage) {
-    return NextResponse.redirect(new URL('/', request.url))
-  }
-
-  return supabaseResponse
 }
 
 export const config = {
