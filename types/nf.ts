@@ -21,7 +21,7 @@ export type NF = {
   projectId: string
   name: string
   description?: string
-  fileData: string   // base64 encoded PDF
+  fileData?: string  // base64 encoded PDF — carregado sob demanda
   fileName: string   // nome original do arquivo
   fileSize: number   // tamanho em bytes
   uploadedAt: string // ISO 8601

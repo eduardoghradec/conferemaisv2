@@ -31,24 +31,30 @@ export default function NFDetailPage() {
   const projectId = params.id    as string
   const nfId      = params.nfId as string
 
-  const { projects, nfs, toggleNFItemStatus } = useProjectStore()
+  const { projects, nfs, hasFetched, fetchData, toggleNFItemStatus } = useProjectStore()
 
   const project = projects.find((p) => p.id === projectId) ?? null
   const nf      = nfs.find((n) => n.id === nfId)           ?? null
 
-  // Redireciona se não existir
+  // Carrega dados se chegou direto nessa rota (store vazio)
   useEffect(() => {
-    if (!project || !nf) {
+    if (!hasFetched) fetchData()
+  }, [hasFetched, fetchData])
+
+  // Redireciona só após dados carregados — evita redirect prematuro com store vazio
+  useEffect(() => {
+    if (hasFetched && (!project || !nf)) {
       router.replace('/')
     }
-  }, [project, nf, router])
+  }, [hasFetched, project, nf, router])
 
   // Estados de UI
   const [selectedItem, setSelectedItem] = useState<NFItem | null>(null)
   const [viewingPDF,   setViewingPDF]   = useState(false)
   const [mode, setMode] = useState<'lista' | 'camera'>('lista')
 
-  if (!project || !nf) return null
+  // Enquanto aguarda dados (acesso direto), exibe tela vazia sem redirecionar
+  if (!hasFetched || !project || !nf) return null
 
   const itens          = nf.itens ?? []
   const confirmados    = itens.filter((i) => i.status === 'confirmado')

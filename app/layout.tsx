@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Plus_Jakarta_Sans } from 'next/font/google'
 import { ServiceWorkerRegistration } from '@/components/pwa/ServiceWorkerRegistration'
 import { InstallHint } from '@/components/pwa/InstallHint'
+import { FocusRefresh } from '@/components/pwa/FocusRefresh'
 import './globals.css'
 
 const jakartaSans = Plus_Jakarta_Sans({

@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase/client'
 import type { Project } from '@/types/project'
 import type { NF, NFItem, NFEmitente } from '@/types/nf'
 
+const STALE_TIME = 30_000 // 30 segundos
+
 // ── Supabase row shapes ────────────────────────────────────────────────────────
 
 type ProjectRow = {
@@ -18,13 +20,13 @@ type ProjectRow = {
   updated_at: string
 }
 
+// Sem file_data — carregado sob demanda via fetchNFFileData
 type NFRow = {
   id: string
   project_id: string
   user_id: string
   name: string
   description: string | null
-  file_data: string
   file_name: string
   file_size: number
   uploaded_at: string
@@ -34,6 +36,11 @@ type NFRow = {
   itens: NFItem[]
   quantidade_total: number | null
   volumes: number | null
+}
+
+type NFFileRow = {
+  id: string
+  file_data: string
 }
 
 // ── Mappers ────────────────────────────────────────────────────────────────────
@@ -55,7 +62,6 @@ function mapNF(row: NFRow): NF {
     projectId: row.project_id,
     name: row.name,
     description: row.description ?? undefined,
-    fileData: row.file_data,
     fileName: row.file_name,
     fileSize: row.file_size,
     uploadedAt: row.uploaded_at,
@@ -103,8 +109,11 @@ type ProjectStore = {
   projects: Project[]
   nfs: NF[]
   isLoading: boolean
+  hasFetched: boolean
+  lastFetched: number | null
 
   fetchData: () => Promise<void>
+  fetchNFFileData: (nfId: string) => Promise<void>
 
   createProject: (data: { name: string; description?: string; color: string }) => Promise<void>
   updateProject: (id: string, data: { name: string; description?: string; color: string }) => Promise<void>
@@ -122,23 +131,69 @@ export const useProjectStore = create<ProjectStore>()((set, get) => ({
   projects: [],
   nfs: [],
   isLoading: false,
+  hasFetched: false,
+  lastFetched: null,
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
 
   fetchData: async () => {
+    const { lastFetched, isLoading } = get()
+
+    // Dados frescos — pula o fetch
+    if (lastFetched && Date.now() - lastFetched < STALE_TIME) return
+    // Já está carregando — evita concorrência
+    if (isLoading) return
+
     set({ isLoading: true })
     const supabase = createClient()
 
+    const NF_COLUMNS = 'id, project_id, user_id, name, description, file_name, file_size, uploaded_at, updated_at, emitente, data_emissao, itens, quantidade_total, volumes'
+
     const [{ data: projectRows }, { data: nfRows }] = await Promise.all([
       supabase.from('projects').select('*').order('created_at', { ascending: false }),
-      supabase.from('nfs').select('*').order('uploaded_at', { ascending: false }),
+      supabase.from('nfs').select(NF_COLUMNS).order('uploaded_at', { ascending: false }),
     ])
+
+    // Preserve fileData já carregado em memória para NFs que já foram abertas
+    const existingNFs = get().nfs
+    const fileDataCache: Record<string, string> = {}
+    for (const nf of existingNFs) {
+      if (nf.fileData) fileDataCache[nf.id] = nf.fileData
+    }
+
+    const mappedNFs = (nfRows as NFRow[] ?? []).map((row) => {
+      const nf = mapNF(row)
+      if (fileDataCache[nf.id]) nf.fileData = fileDataCache[nf.id]
+      return nf
+    })
 
     set({
       projects: (projectRows as ProjectRow[] ?? []).map(mapProject),
-      nfs: (nfRows as NFRow[] ?? []).map(mapNF),
+      nfs: mappedNFs,
       isLoading: false,
+      hasFetched: true,
+      lastFetched: Date.now(),
     })
+  },
+
+  // Carrega fileData de uma NF específica sob demanda
+  fetchNFFileData: async (nfId: string) => {
+    const nf = get().nfs.find((n) => n.id === nfId)
+    if (!nf || nf.fileData) return // Já tem — não busca de novo
+
+    const supabase = createClient()
+    const { data } = await supabase
+      .from('nfs')
+      .select('id, file_data')
+      .eq('id', nfId)
+      .single()
+
+    if (data) {
+      const row = data as NFFileRow
+      set((s) => ({
+        nfs: s.nfs.map((n) => (n.id === nfId ? { ...n, fileData: row.file_data } : n)),
+      }))
+    }
   },
 
   // ── Projetos ───────────────────────────────────────────────────────────────

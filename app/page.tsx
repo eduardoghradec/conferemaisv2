@@ -9,12 +9,13 @@ import { ProjectModal } from '@/components/projects/ProjectModal'
 import { DeleteConfirm } from '@/components/projects/DeleteConfirm'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { FAB } from '@/components/ui/FAB'
+import { ProjectCardSkeleton } from '@/components/projects/ProjectCardSkeleton'
 import { useProjectStore } from '@/store/useProjectStore'
 import type { Project } from '@/types/project'
 
 export default function HomePage() {
   const router = useRouter()
-  const { projects, createProject, updateProject, deleteProject, fetchData } = useProjectStore()
+  const { projects, hasFetched, createProject, updateProject, deleteProject, fetchData } = useProjectStore()
 
   useEffect(() => { fetchData() }, [])
 
@@ -61,7 +62,11 @@ export default function HomePage() {
       <Header projectCount={projects.length} />
 
       <main className="flex-1 flex flex-col">
-        {projects.length === 0 ? (
+        {!hasFetched ? (
+          <div className="flex flex-col gap-3 px-5 pt-4">
+            {[0, 1, 2].map((i) => <ProjectCardSkeleton key={i} />)}
+          </div>
+        ) : projects.length === 0 ? (
           <EmptyState onCreateClick={handleOpenCreate} />
         ) : (
           <ProjectList

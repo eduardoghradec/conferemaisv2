@@ -11,6 +11,7 @@ import { NFModal } from '@/components/nf/NFModal'
 import { NFViewer } from '@/components/nf/NFViewer'
 import { DeleteNFConfirm } from '@/components/nf/DeleteNFConfirm'
 import { EmptyNFState } from '@/components/nf/EmptyNFState'
+import { NFCardSkeleton } from '@/components/nf/NFCardSkeleton'
 import { useProjectStore } from '@/store/useProjectStore'
 import type { NF, NFItem, NFEmitente } from '@/types/nf'
 
@@ -19,18 +20,18 @@ export default function ProjetoPage() {
   const router = useRouter()
   const id     = params.id as string
 
-  const { projects, nfs, addNF, updateNF, deleteNF, fetchData } = useProjectStore()
+  const { projects, nfs, hasFetched, addNF, updateNF, deleteNF, fetchData } = useProjectStore()
 
   useEffect(() => { fetchData() }, [])
 
   const project = projects.find((p) => p.id === id) ?? null
 
-  // Redireciona se o projeto não existir
+  // Redireciona só após dados carregados — evita redirect prematuro com store vazio
   useEffect(() => {
-    if (!project) {
+    if (hasFetched && !project) {
       router.replace('/')
     }
-  }, [project, router])
+  }, [hasFetched, project, router])
 
   // NFs deste projeto
   const projectNFs = nfs.filter((nf) => nf.projectId === id)
@@ -85,6 +86,27 @@ export default function ProjetoPage() {
   /** Navega para a tela de detalhes da NF */
   function handleOpenDetail(nf: NF) {
     router.push(`/projeto/${id}/nf/${nf.id}`)
+  }
+
+  if (!hasFetched) {
+    return (
+      <MobileFrame>
+        <div className="sticky top-0 z-40 px-4 pb-4 header-safe-top bg-[#080808]/90 backdrop-blur-xl" style={{ borderBottom: '1px solid #2A2A2A' }}>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-[#141414] border border-[#2A2A2A] flex-shrink-0" />
+            <div className="flex-1 flex items-center gap-2.5">
+              <div className="w-3 h-3 rounded-full bg-[#2A2A2A] flex-shrink-0" />
+              <div className="h-4 w-36 rounded-md bg-[#1E1E1E] animate-pulse" />
+            </div>
+          </div>
+        </div>
+        <main className="flex-1 flex flex-col pt-4">
+          <div className="flex flex-col gap-3 px-5">
+            {[0, 1, 2].map((i) => <NFCardSkeleton key={i} />)}
+          </div>
+        </main>
+      </MobileFrame>
+    )
   }
 
   if (!project) return null

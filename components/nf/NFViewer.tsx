@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Download } from 'lucide-react'
+import { X, Download, Loader2 } from 'lucide-react'
 import type { NF } from '@/types/nf'
+import { useProjectStore } from '@/store/useProjectStore'
 
 type NFViewerProps = {
   nf: NF | null
@@ -21,10 +22,24 @@ function base64ToObjectUrl(base64: string): string {
 }
 
 export function NFViewer({ nf, onClose }: NFViewerProps) {
+  const { fetchNFFileData, nfs } = useProjectStore()
+  const [isFetchingFile, setIsFetchingFile] = useState(false)
+
+  // NF atualizada da store (pode ganhar fileData após o fetch lazy)
+  const liveNF = nf ? (nfs.find((n) => n.id === nf.id) ?? nf) : null
+  const fileData = liveNF?.fileData
+
+  // Dispara fetch do fileData quando abrir e ele não estiver disponível
+  useEffect(() => {
+    if (!nf || fileData) return
+    setIsFetchingFile(true)
+    fetchNFFileData(nf.id).finally(() => setIsFetchingFile(false))
+  }, [nf?.id, fileData, fetchNFFileData])
+
   const pdfUrl = useMemo(() => {
-    if (!nf) return ''
-    return base64ToObjectUrl(nf.fileData)
-  }, [nf])
+    if (!fileData) return ''
+    return base64ToObjectUrl(fileData)
+  }, [fileData])
 
   // Libera a object URL ao desmontar ou trocar de NF
   useEffect(() => {
@@ -43,10 +58,10 @@ export function NFViewer({ nf, onClose }: NFViewerProps) {
   }, [onClose])
 
   function handleDownload() {
-    if (!nf) return
+    if (!liveNF || !pdfUrl) return
     const a = document.createElement('a')
     a.href = pdfUrl
-    a.download = nf.fileName
+    a.download = liveNF.fileName
     a.click()
   }
 
@@ -89,15 +104,24 @@ export function NFViewer({ nf, onClose }: NFViewerProps) {
             <motion.button
               whileTap={{ scale: 0.85 }}
               onClick={handleDownload}
-              className="w-9 h-9 rounded-xl flex items-center justify-center bg-[#FF6500]/10 border border-[#FF6500]/30 hover:bg-[#FF6500]/20 transition-all cursor-pointer flex-shrink-0"
+              disabled={!pdfUrl}
+              className="w-9 h-9 rounded-xl flex items-center justify-center bg-[#FF6500]/10 border border-[#FF6500]/30 hover:bg-[#FF6500]/20 transition-all cursor-pointer flex-shrink-0 disabled:opacity-40"
               title="Baixar PDF"
             >
               <Download className="w-4 h-4 text-[#FF6500]" />
             </motion.button>
           </div>
 
-          {/* PDF iframe */}
+          {/* Conteúdo */}
           <div className="flex-1 relative">
+            {isFetchingFile && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="flex flex-col items-center gap-3">
+                  <Loader2 className="w-8 h-8 text-[#FF6500] animate-spin" />
+                  <p className="text-sm text-[#555555] font-medium">Carregando PDF…</p>
+                </div>
+              </div>
+            )}
             {pdfUrl && (
               <iframe
                 src={pdfUrl}
