@@ -2,13 +2,13 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || !supabaseAnonKey) {
     console.error(
-      '[middleware] Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. ' +
+      '[proxy] Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. ' +
         'Add these to your Vercel project environment variables.'
     )
     return NextResponse.next({ request })
@@ -49,7 +49,7 @@ export async function middleware(request: NextRequest) {
 
     return supabaseResponse
   } catch (error) {
-    console.error('[middleware] Unexpected error:', error)
+    console.error('[proxy] Unexpected error:', error)
     return NextResponse.next({ request })
   }
 }
