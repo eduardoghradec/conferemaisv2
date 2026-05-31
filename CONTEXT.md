@@ -9,12 +9,14 @@ Guia para devs e agentes de IA navegando ou expandindo o projeto.
 | Camada | Arquivo | O que faz |
 |---|---|---|
 | Tipos — Projeto | `types/project.ts` | Tipagem `Project` e array `PROJECT_COLORS` |
-| Tipos — NF | `types/nf.ts` | Tipagem `NF` (nota fiscal) |
+| Tipos — NF | `types/nf.ts` | Tipagem `NF`, `NFItem` (inclui `codigoProduto?`), `NFEmitente` |
 | Estado | `store/useProjectStore.ts` | CRUD de projetos **e** NFs — única fonte de verdade |
 | Utilidades | `lib/utils.ts` | `cn()`, `formatDate()`, `formatFileSize()` |
+| Parser PDF | `lib/parsePdfNF.ts` | Extrai emitente, itens, volumes e `codigoProduto` de DANFEs |
 | Shell | `components/layout/MobileFrame.tsx` | Centraliza viewport 430px |
 | Tela principal | `app/page.tsx` | Lista de projetos; orquestra modals e navegação |
-| Tela de detalhe | `app/projeto/[id]/page.tsx` | NFs do projeto; orquestra modals de NF |
+| Tela de detalhe projeto | `app/projeto/[id]/page.tsx` | NFs do projeto; orquestra modals de NF |
+| Tela de detalhe NF | `app/projeto/[id]/nf/[nfId]/page.tsx` | Conferência de itens; switcher Lista / Câmera |
 
 ---
 
@@ -63,9 +65,25 @@ components/nf/
 ├── NFList.tsx          Lista animada com AnimatePresence
 ├── NFModal.tsx         Bottom sheet — adicionar / editar NF + upload PDF
 ├── NFViewer.tsx        Overlay full-screen para visualizar PDF
+├── NFItemCard.tsx      Card de item da NF (status pendente/confirmado; hint de toque)
+├── NFItemDetail.tsx    Bottom sheet de detalhe do item (toggle de status)
+├── CameraMode.tsx      Overlay de câmera com scanner animado e campos placeholder
 ├── DeleteNFConfirm.tsx Dialog de confirmação de remoção
 └── EmptyNFState.tsx    Estado vazio com CTA
 ```
+
+---
+
+## Modos de conferência (tela NF)
+
+A tela `/projeto/[id]/nf/[nfId]` oferece dois modos selecionados por um switcher fixo no rodapé:
+
+| Modo | Componente | Comportamento |
+|---|---|---|
+| **Lista** | `NFItemCard` + `NFItemDetail` | Toque no card confirma o item; badge "Toque p/ confirmar" no pendente |
+| **Câmera** | `CameraMode` | Preview ao vivo (`getUserMedia`), overlay de scanner animado, campos placeholder para leitura futura |
+
+`CameraMode` para o stream da câmera (`track.stop()`) ao fechar para evitar vazamento de recursos.
 
 ---
 
@@ -74,7 +92,7 @@ components/nf/
 - ❌ Não criar uma segunda store Zustand — expandir a existente
 - ❌ Não usar `useEffect` para sincronizar a store com `localStorage` — o middleware `persist` já cuida disso
 - ❌ Não criar componentes com estado de projeto/NF fora do page correspondente sem motivo claro
-- ❌ Não importar `nanoid` em lugar nenhum além da store
+- ❌ Não importar `nanoid` fora da store ou do `parsePdfNF.ts` (único outro uso legítimo)
 - ❌ Não adicionar cor de projeto hardcoded — usar `PROJECT_COLORS` de `types/project.ts`
 - ❌ Não colocar lógica de negócio dentro de componentes de UI (`components/ui/`)
 - ❌ Não usar data URI (`data:application/pdf;base64,...`) direto num `<iframe src>` — usar `URL.createObjectURL()` para arquivos grandes

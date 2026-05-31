@@ -45,6 +45,9 @@ const UNIT_LIST   = [
 const UNIT_RE_STR = `\\b(${UNIT_LIST.join('|')})\\b`
 const QTD_UNIT_RE = new RegExp(`(\\d{1,10}[.,]\\d{1,6}|\\d{1,10})\\s*${UNIT_RE_STR}`, 'i')
 
+// Detecta linhas que começam com código de produto alfanumérico (ex: HSDM08.9107, HSAC06.3892)
+const PROD_CODE_RE = /^([A-Z]{2,}[A-Z0-9]*[.\-]\d[A-Z0-9.]*)\s+/i
+
 // Labels que NÃO são o nome do emitente
 const SKIP_LABELS = [
   'DANFE','NF-E','NF-e','NOTA FISCAL','DOCUMENTO AUXILIAR',
@@ -139,6 +142,144 @@ async function extractLines(base64: string): Promise<TextLine[]> {
   return lines
 }
 
+// ── Parsers de itens ──────────────────────────────────────────────────────────
+
+// Layout com código de produto como identificador de linha (ex: HOUSE AMBIENTES LTDA)
+function buildCodeItem(num: number, codigo: string, rest: string, ncm: string): NFItem {
+  const ncmPos    = rest.indexOf(ncm)
+  const descricao = rest.slice(0, ncmPos).trim() || `Item ${num}`
+
+  // Após NCM: "000 6101 UN 1,0000 ..."
+  const afterNcm   = rest.slice(ncmPos + ncm.length).trim()
+  const qtdM       = afterNcm.match(QTD_UNIT_RE)
+  const quantidade = qtdM ? parseDecimal(qtdM[1]) : 0
+  const unidade    = qtdM ? qtdM[2].toUpperCase() : 'UN'
+
+  return {
+    id: nanoid(),
+    numero: num,
+    descricao,
+    ncm,
+    codigoProduto: codigo,
+    quantidade,
+    unidade,
+    status: 'pendente',
+  }
+}
+
+function parseCodeLayoutItems(lines: TextLine[]): NFItem[] {
+  const result: NFItem[] = []
+  let num = 1
+  let pendingCode: string | null = null
+  let pendingDesc = ''
+
+  for (const line of lines) {
+    const { text } = line
+
+    // Pula cabeçalhos de tabela repetidos entre páginas
+    if (/descri[çc][ãa]o\s+(do\s+)?produto/i.test(text)) continue
+
+    // Para em seções pós-itens
+    if (/dados\s+adicionais|informações\s+complementares|reservado\s+ao\s+fisco|transportador.*volume/i.test(text)) break
+
+    const codeMatch = text.match(PROD_CODE_RE)
+
+    if (codeMatch) {
+      const codigo = codeMatch[1]
+      const rest   = text.slice(codeMatch[0].length).trim()
+      const ncmM   = rest.match(NCM_RE)
+
+      if (ncmM) {
+        result.push(buildCodeItem(num++, codigo, rest, ncmM[1]))
+        pendingCode = null
+        pendingDesc = ''
+      } else {
+        // Descrição continua na próxima linha
+        pendingCode = codigo
+        pendingDesc = rest
+      }
+    } else if (pendingCode !== null) {
+      // Linha de continuação da descrição anterior
+      const combined = (pendingDesc + ' ' + text).trim()
+      const ncmM = combined.match(NCM_RE)
+      if (ncmM) {
+        result.push(buildCodeItem(num++, pendingCode, combined, ncmM[1]))
+        pendingCode = null
+        pendingDesc = ''
+      } else {
+        pendingDesc = combined
+      }
+    }
+  }
+  return result
+}
+
+// Layout com numeração sequencial (1, 2, 3…) — layout padrão original
+function parseNumberLayoutItems(itemLines: TextLine[]): NFItem[] {
+  const itens: NFItem[] = []
+  let expectedNum = 1
+
+  for (const line of itemLines) {
+    const { text } = line
+
+    if (
+      itens.length > 0 &&
+      /dados\s+do(s)?\s+(vol|transport|fisco|tribut)/i.test(text)
+    ) break
+
+    const numMatch = text.match(/^(\d{1,4})\b/)
+    if (!numMatch) continue
+    const num = parseInt(numMatch[1], 10)
+    if (num !== expectedNum) continue
+
+    const rest = text.slice(numMatch[0].length).trim()
+
+    const ncmMatch = rest.match(NCM_RE)
+    const ncm      = ncmMatch ? ncmMatch[1] : ''
+
+    let quantidade = 0
+    let unidade    = 'UN'
+    const qtdMatch = rest.match(QTD_UNIT_RE)
+    if (qtdMatch) {
+      quantidade = parseDecimal(qtdMatch[1])
+      unidade    = qtdMatch[2].toUpperCase()
+    } else {
+      const decMatch = rest.match(/\b(\d+[.,]\d{3,6})\b/)
+      if (decMatch) quantidade = parseDecimal(decMatch[1])
+    }
+
+    let descricao = ''
+    if (ncm && rest.includes(ncm)) {
+      const ncmPos = rest.indexOf(ncm)
+      const before = rest.slice(0, ncmPos).trim()
+      descricao = before.replace(/^\S+\s+/, '').trim()
+    }
+    if (!descricao) {
+      descricao = rest.split(/\s{2,}|\|/)[0].replace(/^\S+\s+/, '').trim()
+    }
+    if (!descricao) descricao = `Item ${num}`
+
+    let codigoProduto: string | undefined
+    const codMatch = rest.match(/^(\S+)\s+/)
+    if (codMatch && codMatch[1] !== ncm && !/^\d{1,4}$/.test(codMatch[1])) {
+      codigoProduto = codMatch[1]
+    }
+
+    itens.push({
+      id: nanoid(),
+      numero: num,
+      descricao,
+      ncm,
+      codigoProduto,
+      quantidade,
+      unidade,
+      status: 'pendente',
+    })
+    expectedNum++
+  }
+  return itens
+}
+
 // ── Parser principal ──────────────────────────────────────────────────────────
 
 /**
@@ -172,7 +313,6 @@ export async function parsePdfNF(base64: string): Promise<ParsedNF | null> {
           !SKIP_LABELS.some(skip => t.toUpperCase().includes(skip.toUpperCase()))
         )
       if (candidates.length > 0) {
-        // Pega o candidato mais longo (geralmente a razão social)
         emitenteName = candidates.reduce((a, b) => b.length > a.length ? b : a)
       }
     }
@@ -187,21 +327,18 @@ export async function parsePdfNF(base64: string): Promise<ParsedNF | null> {
       }
     }
     if (!dataEmissao) {
-      // Fallback: primeira data do documento
       const m = fullText.match(DATE_RE)
       if (m) dataEmissao = m[1]
     }
 
     // ── Número da NF ──────────────────────────────────────────────
     let nfNumero = ''
-    // Padrão: "Nº 000.000.000" ou "Nº: 000000000"
     const nfNumMatch = fullText.match(/n[ºo°]\.?\s*:?\s*(\d[\d.]{4,})/i)
     if (nfNumMatch) {
       nfNumero = nfNumMatch[1].replace(/\./g, '')
     }
 
     // ── Seção de itens ────────────────────────────────────────────
-    // Encontra o cabeçalho da tabela de itens
     const headerIdx = lines.findIndex(l =>
       /descri[çc][ãa]o\s+(do\s+)?produto/i.test(l.text) ||
       /c[oó]d(\.?\s*|\s+)(do\s+)?produto/i.test(l.text) ||
@@ -209,76 +346,15 @@ export async function parsePdfNF(base64: string): Promise<ParsedNF | null> {
     )
     const itemLines = headerIdx >= 0 ? lines.slice(headerIdx + 1) : lines
 
-    const itens: NFItem[] = []
-    let expectedNum = 1
+    // Detecta se o layout usa códigos de produto no lugar de números sequenciais
+    const sample     = itemLines.slice(0, 15)
+    const codeHits   = sample.filter(l => PROD_CODE_RE.test(l.text)).length
+    const numberHits = sample.filter(l => /^\d{1,4}\b/.test(l.text)).length
+    const isCodeLayout = codeHits > numberHits
 
-    for (const line of itemLines) {
-      const { text } = line
-
-      // Para quando chegar em seções pós-itens
-      if (
-        itens.length > 0 &&
-        /dados\s+do(s)?\s+(vol|transport|fisco|tribut)/i.test(text)
-      ) break
-
-      // Linha de item começa com o número sequencial esperado
-      const numMatch = text.match(/^(\d{1,4})\b/)
-      if (!numMatch) continue
-      const num = parseInt(numMatch[1], 10)
-      if (num !== expectedNum) continue
-
-      const rest = text.slice(numMatch[0].length).trim()
-
-      // NCM: 8 dígitos exatos
-      const ncmMatch = rest.match(NCM_RE)
-      const ncm      = ncmMatch ? ncmMatch[1] : ''
-
-      // Quantidade + Unidade
-      let quantidade = 0
-      let unidade    = 'UN'
-      const qtdMatch = rest.match(QTD_UNIT_RE)
-      if (qtdMatch) {
-        quantidade = parseDecimal(qtdMatch[1])
-        unidade    = qtdMatch[2].toUpperCase()
-      } else {
-        // Fallback: número decimal de 4+ casas (ex: "10,0000")
-        const decMatch = rest.match(/\b(\d+[.,]\d{3,6})\b/)
-        if (decMatch) quantidade = parseDecimal(decMatch[1])
-      }
-
-      // Descrição: tudo entre o nº do item e o NCM (ou metade da linha)
-      let descricao = ''
-      if (ncm && rest.includes(ncm)) {
-        const ncmPos = rest.indexOf(ncm)
-        const before = rest.slice(0, ncmPos).trim()
-        // Remove código do produto (primeiro token alfanumérico)
-        descricao = before.replace(/^\S+\s+/, '').trim()
-      }
-      if (!descricao) {
-        // Fallback: porção inicial antes de dois espaços ou pipe
-        descricao = rest.split(/\s{2,}|\|/)[0].replace(/^\S+\s+/, '').trim()
-      }
-      if (!descricao) descricao = `Item ${num}`
-
-      // Código do produto: primeiro token antes da descrição (ex: "ABC123" ou "1100.1008.201.535")
-      let codigoProduto: string | undefined
-      const codMatch = rest.match(/^(\S+)\s+/)
-      if (codMatch && codMatch[1] !== ncm && !/^\d{1,4}$/.test(codMatch[1])) {
-        codigoProduto = codMatch[1]
-      }
-
-      itens.push({
-        id: nanoid(),
-        numero: num,
-        descricao,
-        ncm,
-        codigoProduto,
-        quantidade,
-        unidade,
-        status: 'pendente',
-      })
-      expectedNum++
-    }
+    const itens: NFItem[] = isCodeLayout
+      ? parseCodeLayoutItems(itemLines)
+      : parseNumberLayoutItems(itemLines)
 
     // ── Volumes ───────────────────────────────────────────────────
     let volumes = 0
@@ -288,7 +364,16 @@ export async function parsePdfNF(base64: string): Promise<ParsedNF | null> {
       if (m) volumes = parseInt(m[1], 10)
     }
 
-    // Se não encontrou nenhum dado relevante, não retorna lixo
+    // Fallback: layout HOUSE AMBIENTES usa "N VOLUME(S)" na seção de transportador
+    if (!volumes) {
+      const transportIdx = lines.findIndex(l => /transportador.*volume/i.test(l.text))
+      if (transportIdx >= 0) {
+        const transportText = lines.slice(transportIdx, transportIdx + 25).map(l => l.text).join(' ')
+        const m = transportText.match(/(\d+)\s*volume/i) || transportText.match(/volume[^0-9]*(\d+)/i)
+        if (m) volumes = parseInt(m[1], 10)
+      }
+    }
+
     if (!cnpjFormatted && !emitenteName && itens.length === 0) return null
 
     const quantidadeTotal = itens.reduce((s, i) => s + i.quantidade, 0)

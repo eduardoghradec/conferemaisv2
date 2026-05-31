@@ -45,6 +45,7 @@
 - **Padding horizontal padrão:** `px-5` (20px)
 - **Gap entre cards:** `gap-3` (12px)
 - **Bottom padding da lista** (espaço pro FAB): `pb-28`
+- **Bottom padding da tela de NF** (espaço pro switcher Lista/Câmera): `pb-32`
 
 ---
 
@@ -95,6 +96,26 @@
 - Header com: botão fechar (←), nome + nome do arquivo, botão download (laranja)
 - PDF renderizado em `<iframe>` via `URL.createObjectURL()` a partir do base64
 - Fecha com tecla `Escape`
+
+### Switcher de modo (tela NF)
+
+- Barra fixa no rodapé da tela de detalhe da NF (z-index 30)
+- Fundo: `linear-gradient(to top, #080808 60%, transparent)` para desvanecer o conteúdo
+- Container interno: `#141414`, borda `#2A2A2A`, `rounded-2xl`, padding `p-1`
+- **Botão ativo:** fundo `rgba(255,101,0,0.12)`, borda `rgba(255,101,0,0.4)`, texto/ícone `#FF6500`
+- **Botão inativo:** sem fundo, borda transparente, texto/ícone `#555555`
+- Ícones: `List` (modo lista) e `Camera` (modo câmera) — `lucide-react`
+
+### CameraMode
+
+- Overlay fixo `inset-0` com z-index 70, fundo `#080808`
+- Header: botão fechar + título centralizado + espaço reservado (futuro: lanterna)
+- Viewfinder: `<video autoPlay playsInline muted>` com `facingMode: 'environment'`
+- Scanner overlay: 4 cantos `border-[#FF6500]` + linha de scan animada (framer-motion `y: 0 → 100%`, `repeat: Infinity, repeatType: 'reverse'`)
+- Estado `requesting`: spinner giratório com `border-t-[#FF6500]`
+- Estado `denied`: ícone `CameraOff` vermelho + texto de instrução
+- Estado `error`: ícone `CameraOff` âmbar + texto de instrução
+- Painel inferior: campos placeholder com `opacity: 0.6`, badge "Em breve" laranja, ícone `Sparkles`
 
 ---
 
