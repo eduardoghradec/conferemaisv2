@@ -1,12 +1,23 @@
 'use client'
 
 import { motion } from 'framer-motion'
+import { LogOut } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 
 type HeaderProps = {
   projectCount: number
 }
 
 export function Header({ projectCount }: HeaderProps) {
+  const router = useRouter()
+
+  async function handleLogout() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.replace('/login')
+  }
+
   return (
     <motion.header
       initial={{ opacity: 0, y: -20 }}
@@ -27,17 +38,28 @@ export function Header({ projectCount }: HeaderProps) {
           </p>
         </div>
 
-        {projectCount > 0 && (
-          <motion.div
-            key={projectCount}
-            initial={{ scale: 0.7, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: 'spring', stiffness: 500, damping: 25 }}
-            className="flex items-center justify-center w-9 h-9 rounded-full bg-[#141414] border border-[#2A2A2A]"
+        <div className="flex items-center gap-2">
+          {projectCount > 0 && (
+            <motion.div
+              key={projectCount}
+              initial={{ scale: 0.7, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+              className="flex items-center justify-center w-9 h-9 rounded-full bg-[#141414] border border-[#2A2A2A]"
+            >
+              <span className="text-sm font-bold text-[#FF6500]">{projectCount}</span>
+            </motion.div>
+          )}
+
+          <motion.button
+            whileTap={{ scale: 0.85 }}
+            onClick={handleLogout}
+            className="w-9 h-9 rounded-full flex items-center justify-center bg-[#141414] border border-[#2A2A2A] hover:border-[#3A3A3A] transition-all cursor-pointer"
+            title="Sair"
           >
-            <span className="text-sm font-bold text-[#FF6500]">{projectCount}</span>
-          </motion.div>
-        )}
+            <LogOut className="w-4 h-4 text-[#555555]" />
+          </motion.button>
+        </div>
       </div>
     </motion.header>
   )

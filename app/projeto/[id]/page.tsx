@@ -19,7 +19,9 @@ export default function ProjetoPage() {
   const router = useRouter()
   const id     = params.id as string
 
-  const { projects, nfs, addNF, updateNF, deleteNF } = useProjectStore()
+  const { projects, nfs, addNF, updateNF, deleteNF, fetchData } = useProjectStore()
+
+  useEffect(() => { fetchData() }, [])
 
   const project = projects.find((p) => p.id === id) ?? null
 

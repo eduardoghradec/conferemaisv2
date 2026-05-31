@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { MobileFrame } from '@/components/layout/MobileFrame'
 import { Header } from '@/components/layout/Header'
@@ -14,7 +14,9 @@ import type { Project } from '@/types/project'
 
 export default function HomePage() {
   const router = useRouter()
-  const { projects, createProject, updateProject, deleteProject } = useProjectStore()
+  const { projects, createProject, updateProject, deleteProject, fetchData } = useProjectStore()
+
+  useEffect(() => { fetchData() }, [])
 
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
