@@ -84,21 +84,28 @@ export function NFItemCard({ item, index, onTap }: NFItemCardProps) {
         </div>
 
         {/* Badge de status */}
-        <div
-          className="flex items-center gap-1 px-2.5 py-1 rounded-full flex-shrink-0"
-          style={{
-            background: `${borderColor}15`,
-            border: `1px solid ${borderColor}40`,
-          }}
-        >
-          {isConfirmado ? (
-            <CheckCircle2 className="w-3 h-3" style={{ color: borderColor }} />
-          ) : (
-            <Clock className="w-3 h-3" style={{ color: borderColor }} />
+        <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
+          <div
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full"
+            style={{
+              background: `${borderColor}15`,
+              border: `1px solid ${borderColor}40`,
+            }}
+          >
+            {isConfirmado ? (
+              <CheckCircle2 className="w-3 h-3" style={{ color: borderColor }} />
+            ) : (
+              <Clock className="w-3 h-3" style={{ color: borderColor }} />
+            )}
+            <span className="text-xs font-bold" style={{ color: borderColor }}>
+              {isConfirmado ? 'OK' : 'Pendente'}
+            </span>
+          </div>
+          {!isConfirmado && (
+            <span className="text-[9px] text-[#555555] font-medium leading-none">
+              Toque p/ confirmar
+            </span>
           )}
-          <span className="text-xs font-bold" style={{ color: borderColor }}>
-            {isConfirmado ? 'OK' : 'Pendente'}
-          </span>
         </div>
       </div>
     </motion.button>

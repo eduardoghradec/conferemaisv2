@@ -5,6 +5,7 @@ export type NFItem = {
   numero: number
   descricao: string
   ncm: string
+  codigoProduto?: string
   quantidade: number
   unidade: string
   status: NFItemStatus

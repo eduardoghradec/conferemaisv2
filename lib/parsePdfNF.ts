@@ -260,11 +260,19 @@ export async function parsePdfNF(base64: string): Promise<ParsedNF | null> {
       }
       if (!descricao) descricao = `Item ${num}`
 
+      // Código do produto: primeiro token antes da descrição (ex: "ABC123" ou "1100.1008.201.535")
+      let codigoProduto: string | undefined
+      const codMatch = rest.match(/^(\S+)\s+/)
+      if (codMatch && codMatch[1] !== ncm && !/^\d{1,4}$/.test(codMatch[1])) {
+        codigoProduto = codMatch[1]
+      }
+
       itens.push({
         id: nanoid(),
         numero: num,
         descricao,
         ncm,
+        codigoProduto,
         quantidade,
         unidade,
         status: 'pendente',

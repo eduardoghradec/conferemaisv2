@@ -13,11 +13,14 @@ import {
   Clock,
   Layers,
   FileSearch,
+  List,
+  Camera,
 } from 'lucide-react'
 import { MobileFrame } from '@/components/layout/MobileFrame'
 import { NFViewer } from '@/components/nf/NFViewer'
 import { NFItemCard } from '@/components/nf/NFItemCard'
 import { NFItemDetail } from '@/components/nf/NFItemDetail'
+import { CameraMode } from '@/components/nf/CameraMode'
 import { useProjectStore } from '@/store/useProjectStore'
 import { formatDate } from '@/lib/utils'
 import type { NFItem } from '@/types/nf'
@@ -43,6 +46,7 @@ export default function NFDetailPage() {
   // Estados de UI
   const [selectedItem, setSelectedItem] = useState<NFItem | null>(null)
   const [viewingPDF,   setViewingPDF]   = useState(false)
+  const [mode, setMode] = useState<'lista' | 'camera'>('lista')
 
   if (!project || !nf) return null
 
@@ -131,7 +135,7 @@ export default function NFDetailPage() {
       </motion.header>
 
       {/* Conteúdo */}
-      <main className="flex-1 flex flex-col pt-4 pb-10 gap-4 px-5">
+      <main className="flex-1 flex flex-col pt-4 pb-32 gap-4 px-5">
 
         {/* ── Card: Identificação ───────────────────────────────────── */}
         <motion.div
@@ -378,6 +382,66 @@ export default function NFDetailPage() {
         )}
       </main>
 
+      {/* Switcher de modo — fixo na parte inferior */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4, duration: 0.35, ease: 'easeOut' }}
+        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] px-4 pb-6 pt-3 z-30"
+        style={{ background: 'linear-gradient(to top, #080808 60%, transparent)' }}
+      >
+        <div
+          className="flex rounded-2xl overflow-hidden p-1 gap-1"
+          style={{ background: '#141414', border: '1px solid #2A2A2A' }}
+        >
+          {/* Lista */}
+          <motion.button
+            whileTap={{ scale: 0.96 }}
+            onClick={() => setMode('lista')}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl transition-all cursor-pointer"
+            style={
+              mode === 'lista'
+                ? { background: 'rgba(255,101,0,0.12)', border: '1px solid rgba(255,101,0,0.4)' }
+                : { border: '1px solid transparent' }
+            }
+          >
+            <List
+              className="w-4 h-4"
+              style={{ color: mode === 'lista' ? '#FF6500' : '#555555' }}
+            />
+            <span
+              className="text-sm font-bold"
+              style={{ color: mode === 'lista' ? '#FF6500' : '#555555' }}
+            >
+              Lista
+            </span>
+          </motion.button>
+
+          {/* Câmera */}
+          <motion.button
+            whileTap={{ scale: 0.96 }}
+            onClick={() => setMode('camera')}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl transition-all cursor-pointer"
+            style={
+              mode === 'camera'
+                ? { background: 'rgba(255,101,0,0.12)', border: '1px solid rgba(255,101,0,0.4)' }
+                : { border: '1px solid transparent' }
+            }
+          >
+            <Camera
+              className="w-4 h-4"
+              style={{ color: mode === 'camera' ? '#FF6500' : '#555555' }}
+            />
+            <span
+              className="text-sm font-bold"
+              style={{ color: mode === 'camera' ? '#FF6500' : '#555555' }}
+            >
+              Câmera
+            </span>
+          </motion.button>
+        </div>
+      </motion.div>
+
       {/* Visualizador de PDF */}
       <NFViewer
         nf={viewingPDF ? nf : null}
@@ -389,6 +453,12 @@ export default function NFDetailPage() {
         item={liveSelectedItem}
         onClose={() => setSelectedItem(null)}
         onToggleStatus={handleToggleFromDetail}
+      />
+
+      {/* Modo câmera */}
+      <CameraMode
+        isOpen={mode === 'camera'}
+        onClose={() => setMode('lista')}
       />
     </MobileFrame>
   )
