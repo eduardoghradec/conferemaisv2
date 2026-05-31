@@ -59,7 +59,7 @@ export function NFModal({ isOpen, editingNF, onClose, onSubmit }: NFModalProps) 
     if (editingNF) {
       setName(editingNF.name)
       setDescription(editingNF.description ?? '')
-      setFileData(editingNF.fileData)
+      setFileData(editingNF.fileData ?? '')
       setFileName(editingNF.fileName)
       setFileSize(editingNF.fileSize)
       // Reconstrói parsedNF a partir dos dados já salvos

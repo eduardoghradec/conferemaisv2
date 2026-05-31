@@ -46,6 +46,7 @@ export default function RootLayout({
     <html lang="pt-BR" className={`${jakartaSans.variable} h-full`}>
       <body className="min-h-full bg-[#080808] text-white antialiased">
         <ServiceWorkerRegistration />
+        <FocusRefresh />
         {children}
         <InstallHint />
       </body>
